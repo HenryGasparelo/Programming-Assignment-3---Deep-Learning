@@ -1,0 +1,27 @@
+# Ambientes Virtuais e Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Dados (manter apenas estrutura e scripts, dataset baixado localmente)
+data/*
+!data/.gitkeep
+
+# Checkpoints intermediários e pesados
+checkpoints/*
+!checkpoints/.gitkeep
+# Se for versionar apenas o modelo final entregue, descomentar:
+# !checkpoints/best_model.pt
+
+# Resultados e predições temporárias
+results/temp/
+*.log
