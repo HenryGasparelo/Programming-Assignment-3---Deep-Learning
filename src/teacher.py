@@ -22,7 +22,7 @@ def format_species_prompts(class_names: List[str], template: str = "a camera tra
 def extract_teacher_features_and_zero_shot(
     model_id: str = "hf-hub:imageomics/bioclip",
     data_dir: str = "data",
-    cache_dir: str = "results/teacher_cache",
+    cache_dir: str = "checkpoints",
     batch_size: int = 64,
     device: Optional[torch.device] = None,
     force_recompute: bool = False,

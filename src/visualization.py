@@ -1,23 +1,27 @@
-import os
 from typing import Dict, List, Optional, Tuple
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as mpl_cm
 import seaborn as sns
+from PIL import Image
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
+from src.data import load_class_mapping, get_transforms
 from src.metrics import detect_overfitting_epoch
 
 
 def plot_training_curves(
     history: Dict[str, List[float]],
     title_prefix: str = "ResNet-18",
-    save_path: Optional[str] = None,
     show: bool = True,
 ) -> Tuple[plt.Figure, np.ndarray, Dict[str, int]]:
     """
-    Plota as curvas de Loss e F1 Macro (Treino vs. Validação), destacando o início de memorização
-    (overfitting), o ponto de mínima loss de validação e o melhor F1 Macro do `val`.
-    Retorna `(fig, axes, diagnostics)`.
+    Plota na hora as curvas de Loss e F1 Macro (Treino vs. Validação), destacando o início
+    de memorização (overfitting), o ponto de mínima loss de validação e o melhor F1 Macro do `val`.
     """
     diag = detect_overfitting_epoch(history)
     epochs = history["epoch"]
@@ -76,11 +80,10 @@ def plot_training_curves(
     ax.legend(fontsize=9)
 
     plt.tight_layout()
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     return fig, axes, diag
 
@@ -90,11 +93,10 @@ def plot_comparison_curves(
     history_b: Dict[str, List[float]],
     label_a: str = "0(a) SmallCNN",
     label_b: str = "0(b) ResNet-18",
-    save_path: Optional[str] = None,
     show: bool = True,
 ) -> Tuple[plt.Figure, np.ndarray]:
     """
-    Plota lado a lado a comparação de F1 Macro e Loss entre dois modelos/versões
+    Plota na hora a comparação de F1 Macro e Loss entre dois modelos/versões
     (ex: SmallCNN do zero vs. ResNet-18 ImageNet Fine-Tuning).
     """
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.8), dpi=130)
@@ -120,11 +122,10 @@ def plot_comparison_curves(
     axes[1].legend(fontsize=9)
 
     plt.tight_layout()
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     return fig, axes
 
@@ -134,10 +135,9 @@ def plot_confusion_matrix(
     class_names: List[str],
     title: str = "Matriz de Confusão no test_public",
     normalize: bool = True,
-    save_path: Optional[str] = None,
     show: bool = True,
 ) -> Tuple[plt.Figure, plt.Axes]:
-    """Plota a matriz de confusão com anotações e proporções normalizadas por recall."""
+    """Plota na hora a matriz de confusão 21x21 com contagens e proporções normalizadas por recall."""
     fig, ax = plt.subplots(figsize=(13, 11), dpi=130)
 
     if normalize:
@@ -173,11 +173,10 @@ def plot_confusion_matrix(
     plt.yticks(rotation=0, fontsize=9)
     plt.tight_layout()
 
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     return fig, ax
 
@@ -186,10 +185,9 @@ def plot_teacher_noise_diagnostics(
     zs_eval: Dict,
     teacher_cache: Dict,
     imp_teacher: Dict,
-    save_path: Optional[str] = None,
     show: bool = True,
 ) -> Tuple[plt.Figure, np.ndarray]:
-    """Plota o diagnóstico de ruído e viés do Professor Zero-Shot vs. Professor Adaptado."""
+    """Plota na hora o diagnóstico de ruído e viés do Professor Zero-Shot vs. Professor Adaptado."""
     class_names = teacher_cache["class_names"]
     num_classes = len(class_names)
 
@@ -232,11 +230,10 @@ def plot_teacher_noise_diagnostics(
     ax2.grid(True, axis="x", alpha=0.3)
 
     plt.tight_layout()
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     return fig, axes
 
@@ -247,10 +244,9 @@ def plot_student_vs_teacher_per_class(
     f1_teacher_zs: np.ndarray,
     f1_teacher_imp: np.ndarray,
     f1_student: np.ndarray,
-    save_path: Optional[str] = None,
     show: bool = True,
 ) -> Tuple[plt.Figure, np.ndarray, pd.DataFrame]:
-    """Plota o gráfico comparativo de F1 por classe: Piso vs. Professor Zero-Shot vs. Aluno."""
+    """Plota na hora o comparativo de F1 por classe: Piso vs. Professor Zero-Shot vs. Aluno."""
     rows = []
     for idx, cname in enumerate(class_names):
         rows.append({
@@ -309,11 +305,10 @@ def plot_student_vs_teacher_per_class(
     ax2.legend(fontsize=9)
 
     plt.tight_layout()
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     return fig, axes, df_comp
 
@@ -322,11 +317,10 @@ def plot_budget_curve(
     df_curva: pd.DataFrame,
     teacher_zs_f1: float = 0.3017,
     ceiling_f1: float = 0.6860,
-    save_path: Optional[str] = None,
     show: bool = True,
 ) -> Tuple[plt.Figure, plt.Axes, pd.DataFrame]:
     """
-    Plota o gráfico oficial da Parte 2:
+    Plota na hora o gráfico oficial da Parte 2:
     F1 Macro no `test_public` vs. número de rótulos por classe (eixo x em escala log),
     com Piso Supervisionado, Aluno Trilha C, barras de erro (3 seeds no B=5), Professor e Teto.
     """
@@ -406,11 +400,10 @@ def plot_budget_curve(
     ax.legend(fontsize=9.5, loc="lower right")
 
     plt.tight_layout()
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(save_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     summary_rows = []
     for i, b in enumerate(budgets):
@@ -433,11 +426,9 @@ def plot_per_class_gain_budget5(
     piso_b5_per_class_list: List[np.ndarray],
     aluno_b5_per_class_list: List[np.ndarray],
     data_dir: str = "data",
-    save_csv_path: Optional[str] = "results/part2_per_class_gain_b5.csv",
-    save_fig_path: Optional[str] = "docs/figures/part2_ganho_por_classe_b5.png",
     show: bool = True,
 ) -> Tuple[plt.Figure, np.ndarray, pd.DataFrame]:
-    """Plota a quebra horizontal de ganho líquido por classe e comparação de F1 absoluto (média de 3 seeds)."""
+    """Plota na hora a quebra horizontal de ganho líquido por classe e comparação de F1 absoluto (média de 3 seeds)."""
     df_test = pd.read_csv(os.path.join(data_dir, "labels", "test_public.csv"))
     support_map = df_test["label"].value_counts().to_dict()
 
@@ -464,10 +455,6 @@ def plot_per_class_gain_budget5(
         })
 
     df_gain = pd.DataFrame(rows).sort_values("ganho_f1_mean", ascending=False).reset_index(drop=True)
-    if save_csv_path:
-        os.makedirs(os.path.dirname(save_csv_path), exist_ok=True)
-        df_gain.to_csv(save_csv_path, index=False)
-
     df_plot = df_gain.iloc[::-1]
     fig, axes = plt.subplots(1, 2, figsize=(15, 6.5), dpi=130)
 
@@ -500,10 +487,116 @@ def plot_per_class_gain_budget5(
     ax2.legend(fontsize=9, loc="lower right")
 
     plt.tight_layout()
-    if save_fig_path:
-        os.makedirs(os.path.dirname(save_fig_path), exist_ok=True)
-        plt.savefig(save_fig_path, bbox_inches="tight")
     if show:
         plt.show()
+    else:
+        plt.close(fig)
 
     return fig, axes, df_gain
+
+
+def plot_gradcam_gallery(
+    model: nn.Module,
+    image_ids: List[str],
+    data_dir: str = "data",
+    split: str = "test_public",
+    expected_correct: Optional[bool] = None,
+    show: bool = True,
+) -> Tuple[plt.Figure, np.ndarray, pd.DataFrame]:
+    """
+    Calcula o Grad-CAM na última camada convolucional (`layer4`) da ResNet-18 para uma lista
+    fixa de `image_ids` e plota na hora a imagem original ao lado do mapa de saliência (Grad-CAM).
+    Mantém o gráfico limpo (apenas ID, classe real, classe predita e confiança) para que os
+    diagnósticos detalhados fiquem no Markdown.
+    """
+    device = next(model.parameters()).device
+    model.eval()
+
+    class_to_idx, idx_to_class, _ = load_class_mapping(os.path.join(data_dir, "classes.csv"))
+    labels_df = pd.read_csv(os.path.join(data_dir, "labels", f"{split}.csv"))
+    id_to_label = {str(r["image_id"]): str(r["label"]) for _, r in labels_df.iterrows()}
+    eval_tf = get_transforms(img_size=224, is_train=False)
+
+    activations: List[torch.Tensor] = []
+    gradients: List[torch.Tensor] = []
+    h_fwd = model.layer4.register_forward_hook(lambda m, inp, out: activations.append(out))
+    h_bwd = model.layer4.register_full_backward_hook(lambda m, gin, gout: gradients.append(gout[0]))
+
+    n = len(image_ids)
+    fig, axes = plt.subplots(n, 2, figsize=(8.5, 3.3 * n), dpi=130)
+    if n == 1:
+        axes = np.expand_dims(axes, axis=0)
+
+    records = []
+    try:
+        for i, img_id in enumerate(image_ids):
+            true_label = id_to_label[str(img_id)]
+            true_idx = class_to_idx[true_label]
+            img_path = os.path.join(data_dir, "images", split, f"{img_id}.jpg")
+            pil_img = Image.open(img_path).convert("RGB")
+
+            x = eval_tf(pil_img).unsqueeze(0).to(device)
+            activations.clear()
+            gradients.clear()
+            model.zero_grad()
+
+            logits = model(x)
+            probs = F.softmax(logits, dim=1)[0]
+            pred_idx = int(torch.argmax(probs).item())
+            pred_label = idx_to_class[pred_idx]
+            conf = float(probs[pred_idx].item())
+            is_correct = pred_idx == true_idx
+
+            if expected_correct is not None and is_correct != expected_correct:
+                raise ValueError(
+                    f"Imagem {img_id}: esperado correct={expected_correct}, mas obteve "
+                    f"Real='{true_label}' vs Pred='{pred_label}' (correct={is_correct})"
+                )
+
+            logits[0, pred_idx].backward()
+            act = activations[0][0].detach().cpu().numpy()
+            grad = gradients[0][0].detach().cpu().numpy()
+            weights = np.mean(grad, axis=(1, 2))
+            cam = np.maximum(np.tensordot(weights, act, axes=(0, 0)), 0)
+            if cam.max() > 0:
+                cam = cam / cam.max()
+
+            disp_img = np.asarray(pil_img.resize((224, 224)), dtype=np.float32) / 255.0
+            cam_resized = np.asarray(
+                Image.fromarray(np.uint8(cam * 255)).resize((224, 224), resample=Image.BILINEAR),
+                dtype=np.float32,
+            ) / 255.0
+            heatmap = mpl_cm.jet(cam_resized)[:, :, :3]
+            overlay = np.clip(0.55 * disp_img + 0.45 * heatmap, 0.0, 1.0)
+
+            axes[i, 0].imshow(disp_img)
+            axes[i, 0].set_title(f"ID: {img_id} | Real: {true_label}", fontsize=9.5, fontweight="bold")
+            axes[i, 0].axis("off")
+
+            axes[i, 1].imshow(overlay)
+            axes[i, 1].set_title(
+                f"Grad-CAM | Pred: {pred_label} ({conf * 100:.1f}%)",
+                fontsize=9.5,
+                fontweight="bold",
+            )
+            axes[i, 1].axis("off")
+
+            records.append({
+                "image_id": img_id,
+                "true_label": true_label,
+                "pred_label": pred_label,
+                "confidence": round(conf, 4),
+                "correct": is_correct,
+            })
+    finally:
+        h_fwd.remove()
+        h_bwd.remove()
+
+    plt.tight_layout()
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig, axes, pd.DataFrame(records)
+

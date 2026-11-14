@@ -146,6 +146,16 @@ def train_supervised(
         )
 
     model.load_state_dict(best_weights)
+    if checkpoint_path is not None:
+        save_checkpoint(
+            model=model,
+            path=checkpoint_path,
+            arch=arch_name,
+            num_classes=num_classes,
+            epoch=best_epoch,
+            val_f1=best_val_f1,
+            extra_info={"history": history},
+        )
     return model, history, best_epoch, best_val_f1
 
 
@@ -294,4 +304,14 @@ def train_distillation(
         )
 
     model.load_state_dict(best_weights)
+    if checkpoint_path is not None:
+        save_checkpoint(
+            model=model,
+            path=checkpoint_path,
+            arch=arch,
+            num_classes=num_classes,
+            epoch=best_epoch,
+            val_f1=best_val_f1,
+            extra_info={"history": history},
+        )
     return model, history, best_epoch, best_val_f1

@@ -1,5 +1,4 @@
 import os
-import json
 import random
 from typing import Optional, Dict, Any, Tuple
 import numpy as np
@@ -86,15 +85,3 @@ def load_checkpoint(
     model.to(device)
     return model, ckpt
 
-
-def save_json(data: dict, path: str) -> None:
-    """Salva um dicionário em arquivo JSON."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-def load_json(path: str) -> dict:
-    """Carrega dados de um arquivo JSON."""
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)

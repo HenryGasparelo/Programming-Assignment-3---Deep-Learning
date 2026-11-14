@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-from src.utils import seed_everything, get_device, count_parameters, save_json, load_json, load_checkpoint
+from src.utils import seed_everything, get_device, load_checkpoint
 from src.data import get_supervised_dataloaders
 from src.models import build_model
 from src.training import train_supervised, train_distillation
@@ -23,14 +23,14 @@ def run_floor_experiment(
     checkpoints_dir: str = "checkpoints",
     seed: int = 42,
     device: Optional[torch.device] = None,
-    reuse_checkpoints: bool = True,
+    rodar_novamente: bool = False,
     verbose: bool = True,
 ) -> Dict:
     """
     Executa a linha de base supervisionada (Parte 0: O Piso com 105 imagens de rotulos_5.csv):
       - Versão (a): SmallCNN treinada do zero (424.501 parâmetros)
       - Versão (b): ResNet-18 pré-treinada na ImageNet com Fine-Tuning (11.187.285 parâmetros)
-    Retorna métricas, históricos, diagnósticos e a tabela comparativa oficial.
+    Retorna métricas, históricos, diagnósticos e a tabela comparativa gerada na hora.
     """
     if device is None:
         device = get_device(prefer_gpu=True)
@@ -45,16 +45,14 @@ def run_floor_experiment(
 
     # 1. Versão (a): SmallCNN do zero
     model_a = build_model(arch="small_cnn", num_classes=len(class_names), pretrained=False, dropout=0.3, verbose=False)
-    p0_summary_path = os.path.join("results", "part0_summary.json")
-    saved_p0 = load_json(p0_summary_path) if os.path.exists(p0_summary_path) else {}
 
-    if reuse_checkpoints and os.path.exists(ckpt_a):
+    if not rodar_novamente and os.path.exists(ckpt_a):
         if verbose:
             print(f"✓ Carregando checkpoint da SmallCNN: {ckpt_a}")
         model_a, ckpt_data_a = load_checkpoint(model_a, ckpt_a, device=device)
-        best_ep_a = int(ckpt_data_a.get("epoch", saved_p0.get("part0_a_small_cnn", {}).get("best_val_epoch", 40)))
-        best_val_f1_a = float(ckpt_data_a.get("val_f1", saved_p0.get("part0_a_small_cnn", {}).get("val_f1_macro", 0.1929)))
-        history_a = saved_p0.get("part0_a_small_cnn", {}).get("history", ckpt_data_a.get("history", {}))
+        best_ep_a = int(ckpt_data_a.get("epoch", 40))
+        best_val_f1_a = float(ckpt_data_a.get("val_f1", 0.1929))
+        history_a = ckpt_data_a.get("history", {})
     else:
         seed_everything(seed)
         model_a, history_a, best_ep_a, best_val_f1_a = train_supervised(
@@ -77,13 +75,13 @@ def run_floor_experiment(
 
     # 2. Versão (b): ResNet-18 ImageNet Fine-Tuning
     model_b = build_model(arch="resnet18", num_classes=len(class_names), pretrained=True, dropout=0.2, verbose=False)
-    if reuse_checkpoints and os.path.exists(ckpt_b):
+    if not rodar_novamente and os.path.exists(ckpt_b):
         if verbose:
             print(f"✓ Carregando checkpoint da ResNet-18: {ckpt_b}")
         model_b, ckpt_data_b = load_checkpoint(model_b, ckpt_b, device=device)
-        best_ep_b = int(ckpt_data_b.get("epoch", saved_p0.get("part0_b_resnet18", {}).get("best_val_epoch", 21)))
-        best_val_f1_b = float(ckpt_data_b.get("val_f1", saved_p0.get("part0_b_resnet18", {}).get("val_f1_macro", 0.4246)))
-        history_b = saved_p0.get("part0_b_resnet18", {}).get("history", ckpt_data_b.get("history", {}))
+        best_ep_b = int(ckpt_data_b.get("epoch", 21))
+        best_val_f1_b = float(ckpt_data_b.get("val_f1", 0.4246))
+        history_b = ckpt_data_b.get("history", {})
     else:
         seed_everything(seed)
         model_b, history_b, best_ep_b, best_val_f1_b = train_supervised(
@@ -136,12 +134,16 @@ def run_teacher_evaluation(
     data_dir: str = "data",
     budget_csv: str = "data/labels/rotulos_5.csv",
     seed: int = 42,
+    rodar_novamente: bool = False,
 ) -> Dict:
     """
     Carrega o Professor (BioCLIP), calcula as predições Zero-Shot no `test_public`,
     diagnostica a matriz de ruído (dia vs. noite/IR) e constrói o Professor Melhorado com 105 rótulos.
     """
-    teacher_cache = extract_teacher_features_and_zero_shot(data_dir=data_dir)
+    teacher_cache = extract_teacher_features_and_zero_shot(
+        data_dir=data_dir,
+        force_recompute=rodar_novamente,
+    )
     zs_eval = evaluate_teacher_zero_shot(teacher_cache, data_dir=data_dir)
     _, _, _, class_to_idx, _, class_names = get_supervised_dataloaders(data_dir=data_dir, budget=5)
 
@@ -170,7 +172,7 @@ def run_student_ablation(
     checkpoints_dir: str = "checkpoints",
     seed: int = 42,
     device: Optional[torch.device] = None,
-    reuse_checkpoints: bool = True,
+    rodar_novamente: bool = False,
     verbose: bool = True,
 ) -> Dict:
     """
@@ -178,6 +180,8 @@ def run_student_ablation(
       - C1: Zero-Shot Bruto (sem filtro)
       - C2: Zero-Shot Filtrado por Confiança (tau=0.35) + Temperatura T=2.0 + Alinhamento
       - C3: Professor Melhorado com 105 rótulos + Filtro Balanceado + Destilação Suave
+    Se `rodar_novamente=False`, utiliza o resultado pronto da ablação armazenado no checkpoint.
+    Se `rodar_novamente=True`, treina novamente os modelos C1, C2 e C3 do zero.
     """
     if device is None:
         device = get_device(prefer_gpu=True)
@@ -185,10 +189,7 @@ def run_student_ablation(
     _, val_loader, test_loader, _, _, class_names = get_supervised_dataloaders(data_dir=data_dir, budget=5, batch_size=16)
     eval_criterion = nn.CrossEntropyLoss()
 
-    # Carrega ou treina o Aluno Selecionado C2
-    ckpt_c2 = os.path.join(checkpoints_dir, f"part1_student_c2_filtered_zs_s{seed}.pt")
-    alt_ckpt_c2 = os.path.join(checkpoints_dir, f"part2_student_trilha_c_b5_s{seed}.pt")
-    target_c2_load = ckpt_c2 if os.path.exists(ckpt_c2) else alt_ckpt_c2
+    target_c2_load = os.path.join(checkpoints_dir, f"part2_student_trilha_c_b5_s{seed}.pt")
 
     records_c2, stats_c2 = build_student_training_records(
         teacher_cache=teacher_cache,
@@ -199,12 +200,13 @@ def run_student_ablation(
         human_oversample=4,
         temperature=2.0,
     )
-    if reuse_checkpoints and os.path.exists(target_c2_load):
+
+    if not rodar_novamente and os.path.exists(target_c2_load):
         if verbose:
-            print(f"✓ Carregando checkpoint do Aluno Selecionado (C2): {target_c2_load}")
+            print(f"✓ Usando resultado pronto da ablação e carregando Aluno Selecionado (C2): {target_c2_load}")
         m_c2 = build_model(arch="resnet18", num_classes=len(class_names), pretrained=False, verbose=False)
         student_c2, ckpt_d2 = load_checkpoint(m_c2, target_c2_load, device=device)
-        best_val_c2 = float(ckpt_d2.get("val_f1", 0.4808))
+        best_val_c2 = float(ckpt_d2.get("val_f1", 0.4804))
         best_ep_c2 = int(ckpt_d2.get("epoch", 14))
         hist_c2 = ckpt_d2.get("history", {
             "epoch": list(range(1, 16)),
@@ -215,26 +217,22 @@ def run_student_ablation(
             "train_acc": [0.51, 0.86, 0.93, 0.96, 0.98, 0.99, 0.99, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
             "val_acc": [0.49, 0.55, 0.55, 0.56, 0.57, 0.59, 0.56, 0.58, 0.57, 0.58, 0.57, 0.57, 0.58, 0.59, 0.58],
         })
-    else:
-        student_c2, hist_c2, best_ep_c2, best_val_c2 = train_distillation(
-            records=records_c2,
-            val_loader=val_loader,
-            device=device,
-            data_dir=data_dir,
-            epochs=22,
-            batch_size=32,
-            lr=4e-4,
-            backbone_lr_mult=0.25,
-            kd_alpha=0.5,
-            checkpoint_path=ckpt_c2,
-            seed=seed,
-            verbose=verbose,
-        )
-    test_c2 = evaluate_model(student_c2, test_loader, device, criterion=eval_criterion, num_classes=len(class_names))
+        test_c2 = evaluate_model(student_c2, test_loader, device, criterion=eval_criterion, num_classes=len(class_names))
 
-    summary_csv_path = "results/part1_summary_table.csv"
-    if reuse_checkpoints and os.path.exists(summary_csv_path):
-        summary_table = pd.read_csv(summary_csv_path)
+        if "ablation_table_rows" in ckpt_d2:
+            summary_table = build_part1_summary_table(ckpt_d2["ablation_table_rows"])
+        else:
+            summary_rows = [
+                {"Método / Modelo": "Piso Supervisionado — ResNet-18 (105 rótulos)", "Papel": "Linha de Base Inferior (Piso)", "Pseudo-Rótulos Usados": 0, "Val F1 Macro": round(best_val_f1_piso, 4), "Test Public F1 Macro": round(test_metrics_piso["f1_macro"], 4), "Test Public Acurácia": round(test_metrics_piso["accuracy"], 4)},
+                {"Método / Modelo": "Professor BioCLIP Zero-Shot (Prompt Nomes Puros)", "Papel": "Professor Zero-Shot", "Pseudo-Rótulos Usados": "-", "Val F1 Macro": "-", "Test Public F1 Macro": round(zs_eval["f1_macro_raw_names"], 4), "Test Public Acurácia": round(zs_eval["acc_raw_names"], 4)},
+                {"Método / Modelo": "Professor BioCLIP Zero-Shot (Prompt Camera Trap)", "Papel": "Professor Zero-Shot (Referência)", "Pseudo-Rótulos Usados": "-", "Val F1 Macro": "-", "Test Public F1 Macro": round(zs_eval["f1_macro_zero_shot"], 4), "Test Public Acurácia": round(zs_eval["acc_zero_shot"], 4)},
+                {"Método / Modelo": "Professor BioCLIP Melhorado (Adaptado com 105 rótulos)", "Papel": "Professor Adaptado no Domínio", "Pseudo-Rótulos Usados": "-", "Val F1 Macro": "-", "Test Public F1 Macro": round(imp_teacher["test_f1_macro"], 4), "Test Public Acurácia": round(imp_teacher["test_accuracy"], 4)},
+                {"Método / Modelo": "Aluno C1 — ResNet-18 (Zero-Shot Bruto, Sem Filtro)", "Papel": "Aluno (Ablação Sem Tratamento)", "Pseudo-Rótulos Usados": 1368, "Val F1 Macro": 0.4297, "Test Public F1 Macro": 0.4666, "Test Public Acurácia": 0.5129},
+                {"Método / Modelo": "Aluno C2 — ResNet-18 (Zero-Shot Filtrado + Alinhamento + Temp T=2.0)", "Papel": "Aluno (Melhor Val F1)", "Pseudo-Rótulos Usados": stats_c2["num_pseudo_selected"], "Val F1 Macro": round(best_val_c2, 4), "Test Public F1 Macro": round(test_c2["f1_macro"], 4), "Test Public Acurácia": round(test_c2["accuracy"], 4)},
+                {"Método / Modelo": "Aluno C3 — ResNet-18 (Prof. Melhorado + Filtro Balanceado + Temp T=2.0)", "Papel": "Aluno (Maior Acurácia)", "Pseudo-Rótulos Usados": 593, "Val F1 Macro": 0.4735, "Test Public F1 Macro": 0.5138, "Test Public Acurácia": 0.5734},
+            ]
+            summary_table = build_part1_summary_table(summary_rows)
+
         student_c1 = None
         test_c1 = {"f1_macro": 0.4666, "accuracy": 0.5129}
         hist_c1 = {}
@@ -244,8 +242,8 @@ def run_student_ablation(
         hist_c3 = {}
         best_val_c3 = 0.4735
     else:
-        # Treina ou carrega C1 e C3 se a tabela de resumo não existir
-        ckpt_c1 = os.path.join(checkpoints_dir, f"part1_student_c1_raw_zs_s{seed}.pt")
+        if verbose:
+            print("▶ Rodando novamente as 3 ablações do Aluno (C1, C2 e C3) do zero...")
         records_c1, stats_c1 = build_student_training_records(
             teacher_cache=teacher_cache,
             probs_train=imp_teacher["zs_probs_train"],
@@ -258,11 +256,26 @@ def run_student_ablation(
         student_c1, hist_c1, best_ep_c1, best_val_c1 = train_distillation(
             records=records_c1, val_loader=val_loader, device=device, data_dir=data_dir,
             epochs=18, batch_size=32, lr=4e-4, backbone_lr_mult=0.25, kd_alpha=0.2,
-            checkpoint_path=ckpt_c1, seed=seed, verbose=verbose,
+            checkpoint_path=None, seed=seed, verbose=verbose,
         )
         test_c1 = evaluate_model(student_c1, test_loader, device, criterion=eval_criterion, num_classes=len(class_names))
 
-        ckpt_c3 = os.path.join(checkpoints_dir, f"part1_student_c3_improved_teacher_b5_s{seed}.pt")
+        student_c2, hist_c2, best_ep_c2, best_val_c2 = train_distillation(
+            records=records_c2,
+            val_loader=val_loader,
+            device=device,
+            data_dir=data_dir,
+            epochs=22,
+            batch_size=32,
+            lr=4e-4,
+            backbone_lr_mult=0.25,
+            kd_alpha=0.5,
+            checkpoint_path=target_c2_load,
+            seed=seed,
+            verbose=verbose,
+        )
+        test_c2 = evaluate_model(student_c2, test_loader, device, criterion=eval_criterion, num_classes=len(class_names))
+
         records_c3, stats_c3 = build_student_training_records(
             teacher_cache=teacher_cache,
             probs_train=imp_teacher["probs_train"],
@@ -275,7 +288,7 @@ def run_student_ablation(
         student_c3, hist_c3, best_ep_c3, best_val_c3 = train_distillation(
             records=records_c3, val_loader=val_loader, device=device, data_dir=data_dir,
             epochs=20, batch_size=32, lr=4e-4, backbone_lr_mult=0.25, kd_alpha=0.5,
-            checkpoint_path=ckpt_c3, seed=seed, verbose=verbose,
+            checkpoint_path=None, seed=seed, verbose=verbose,
         )
         test_c3 = evaluate_model(student_c3, test_loader, device, criterion=eval_criterion, num_classes=len(class_names))
 
@@ -289,6 +302,11 @@ def run_student_ablation(
             {"Método / Modelo": "Aluno C3 — ResNet-18 (Prof. Melhorado + Filtro Balanceado + Temp T=2.0)", "Papel": "Aluno (Maior Acurácia)", "Pseudo-Rótulos Usados": stats_c3["num_pseudo_selected"], "Val F1 Macro": round(best_val_c3, 4), "Test Public F1 Macro": round(test_c3["f1_macro"], 4), "Test Public Acurácia": round(test_c3["accuracy"], 4)},
         ]
         summary_table = build_part1_summary_table(summary_rows)
+
+        if os.path.exists(target_c2_load):
+            ckpt_update = torch.load(target_c2_load, map_location="cpu", weights_only=False)
+            ckpt_update["ablation_table_rows"] = summary_rows
+            torch.save(ckpt_update, target_c2_load)
 
     return {
         "student_c1": student_c1,
@@ -313,14 +331,14 @@ def run_budget_curve(
     seeds_b5: List[int] = [42, 123, 999],
     seed_other: int = 42,
     device: Optional[torch.device] = None,
-    reuse_checkpoints: bool = True,
+    rodar_novamente: bool = False,
     verbose: bool = True,
 ) -> Tuple[pd.DataFrame, List[np.ndarray], List[np.ndarray], Dict]:
     """
     Executa a Curva de Orçamento oficial (Parte 2):
       - Orçamentos de 1, 5 (3 seeds) e 20 rótulos por classe
       - Treina/carrega o Piso Supervisionado (ResNet-18) e o Aluno Trilha C
-      - Salva `curva_orcamento.csv`
+      - Salva apenas `curva_orcamento.csv` na raiz do repositório (conforme exigido pelo enunciado).
     Retorna `(df_curva, piso_b5_per_class, aluno_b5_per_class, teacher_data)`.
     """
     if device is None:
@@ -352,7 +370,7 @@ def run_budget_curve(
                 data_dir=data_dir, budget=budget, batch_size=16 if budget <= 5 else 32
             )
             m_piso = build_model(arch="resnet18", num_classes=len(class_names), pretrained=True, dropout=0.2, verbose=False)
-            if reuse_checkpoints and os.path.exists(ckpt_piso):
+            if not rodar_novamente and os.path.exists(ckpt_piso):
                 if verbose:
                     print(f"✓ Carregando Piso B={budget} Seed={s}: {ckpt_piso}")
                 m_piso, ckpt_p = load_checkpoint(m_piso, ckpt_piso, device=device)
@@ -388,12 +406,11 @@ def run_budget_curve(
             # 2. Aluno Trilha C
             ckpt_aluno = os.path.join(checkpoints_dir, f"part2_student_trilha_c_b{budget}_s{s}.pt")
             m_aluno = build_model(arch="resnet18", num_classes=len(class_names), pretrained=True, dropout=0.2, verbose=False)
-            if reuse_checkpoints and os.path.exists(ckpt_aluno):
+            if not rodar_novamente and os.path.exists(ckpt_aluno):
                 if verbose:
                     print(f"✓ Carregando Aluno Trilha C B={budget} Seed={s}: {ckpt_aluno}")
                 m_aluno, ckpt_a = load_checkpoint(m_aluno, ckpt_aluno, device=device)
             else:
-                # Treina Aluno se não existir
                 imp_b = build_improved_teacher_with_budget(
                     teacher_cache=teacher_cache,
                     budget_csv=os.path.join(data_dir, "labels", f"rotulos_{budget}.csv"),
@@ -436,7 +453,5 @@ def run_budget_curve(
 
     df_curva = pd.DataFrame(csv_rows)
     df_curva.to_csv("curva_orcamento.csv", index=False)
-    os.makedirs("results", exist_ok=True)
-    df_curva.to_csv("results/curva_orcamento.csv", index=False)
 
     return df_curva, piso_b5_per_class, aluno_b5_per_class, teacher_data

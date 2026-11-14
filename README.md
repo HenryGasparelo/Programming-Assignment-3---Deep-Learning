@@ -37,7 +37,8 @@ Principais desafios do dataset **ENA24-detection** (21 classes):
 
 ```text
 PAA3/
-├── checkpoints/                        # Pesos salvos dos modelos treinados
+├── checkpoints/                        # Pesos salvos dos modelos treinados e cache de features
+│   ├── bioclip_teacher_outputs.pt      # Predições e embeddings em cache do Professor (BioCLIP)
 │   ├── part0a_small_cnn_b5_s42.pt      # Pesos da Parte 0 (a): SmallCNN treinada do zero
 │   ├── part0b_resnet18_b1_s42.pt       # Piso Supervisionado B=1 (21 rótulos)
 │   ├── part0b_resnet18_b5_s42.pt       # Piso Supervisionado B=5 (105 rótulos, seed 42)
@@ -45,7 +46,7 @@ PAA3/
 │   ├── part0b_resnet18_b5_s999.pt      # Piso Supervisionado B=5 (seed 999)
 │   ├── part0b_resnet18_b20_s42.pt      # Piso Supervisionado B=20 (420 rótulos)
 │   ├── part2_student_trilha_c_b1_s42.pt   # Aluno Trilha C B=1 (21 rótulos)
-│   ├── part2_student_trilha_c_b5_s42.pt   # Aluno Trilha C B=5 (seed 42)
+│   ├── part2_student_trilha_c_b5_s42.pt   # Aluno Trilha C B=5 (seed 42 + resumo de ablações)
 │   ├── part2_student_trilha_c_b5_s123.pt  # Aluno Trilha C B=5 (seed 123)
 │   ├── part2_student_trilha_c_b5_s999.pt  # Aluno Trilha C B=5 (seed 999)
 │   ├── part2_student_trilha_c_b20_s42.pt  # Aluno Trilha C B=20 (420 rótulos)
@@ -63,28 +64,6 @@ PAA3/
 │       ├── train/                      # 6.505 imagens do pool de treino
 │       ├── val/                        # 202 imagens do conjunto de validação
 │       └── test_public/                # 811 imagens do teste público
-├── docs/                               # Enunciado, documentação e figuras da apresentação
-│   ├── PA3.pdf                         # Enunciado oficial
-│   └── figures/                        # Gráficos e figuras geradas
-│       ├── part0_curves_resnet18.png   # Curva de treino e validação da Parte 0 (b)
-│       ├── part0_comparison_a_vs_b.png # Comparativo Parte 0 (a) vs Parte 0 (b)
-│       ├── part0_confusion_matrix_resnet18.png # Matriz de confusão da Parte 0 (b) no test_public
-│       ├── part1_teacher_zeroshot_confusion_matrix.png # Matriz de ruído do Professor BioCLIP Zero-Shot
-│       ├── part1_teacher_noise_diagnostics.png         # Diagnóstico sistemático de ruído (dia vs. noite/IR)
-│       ├── part1_student_c3_curves.png                 # Curvas de treino/val do Aluno
-│       ├── part1_student_c3_confusion_matrix.png       # Matriz de confusão do Aluno no test_public
-│       ├── part1_student_vs_teacher_per_class.png      # Comparativo por classe: Aluno vs. Professor vs. Piso
-│       ├── part2_curva_orcamento.png                   # Curva de orçamento semi-log (Piso vs. Aluno vs. Teto)
-│       └── part2_ganho_por_classe_b5.png               # Quebra do ganho por classe no orçamento de 5 rótulos
-├── results/                            # Saídas consolidadas e artefatos de avaliação
-│   ├── part0_summary.json              # Resumo de métricas e diagnóstico de memorização (Parte 0)
-│   ├── part0_per_class_f1.csv          # F1 por classe no test_public (Parte 0a vs 0b)
-│   ├── part1_summary.json              # Resumo das ablações da Parte 1
-│   ├── part1_summary_table.csv         # Tabela consolidada da Parte 1 (Piso vs. Professor vs. Alunos)
-│   ├── part1_per_class_comparison.csv  # F1 por classe: Piso vs. Professor vs. Aluno
-│   ├── curva_orcamento.csv             # Tabela oficial da Parte 2 (método, orçamento, seed, F1, acurácia)
-│   ├── part2_summary_table.csv         # Resumo agregado com médias e desvios padrão da Parte 2
-│   └── part2_per_class_gain_b5.csv     # Quebra detalhada de ganho por classe no orçamento 5 (3 seeds)
 ├── src/                                # Código-fonte modular separado por responsabilidade
 │   ├── __init__.py                     # Interface pública consolidada do pacote
 │   ├── data.py                         # Datasets (CameraTrapDataset, TeacherStudentDataset) e DataLoaders
@@ -93,9 +72,10 @@ PAA3/
 │   ├── metrics.py                      # Avaliação (F1 Macro, acurácia), diagnóstico de memorização e tabelas
 │   ├── teacher.py                      # Foundation Model BioCLIP: zero-shot, pseudo-rótulos e tratamento de ruído
 │   ├── experiments.py                  # Execução modular de experimentos (Piso, Ablações e Curva de Orçamento)
-│   ├── visualization.py                # Gráficos dinâmicos (curvas, matrizes, ruído, orçamento semi-log)
+│   ├── visualization.py                # Plotagem dinâmica na hora (curvas, matrizes, ruído, orçamento semi-log)
 │   └── utils.py                        # Fixação de seeds, gerenciamento de checkpoints e utilitários
-├── main.ipynb                          # Notebook principal de condução e experimentação (Partes 0 a 3)
+├── curva_orcamento.csv                 # Tabela oficial exigida pelo enunciado (método, orçamento, seed, F1, acurácia)
+├── main.ipynb                          # Notebook principal autossuficiente (gera todas as tabelas e gráficos na hora)
 ├── predict.py                          # [Planejado] Script de inferência em CPU exigido para avaliação no test_private
 ├── requirements.txt                    # Dependências do projeto
 ├── AI_LOG.md                           # Relatório de utilização e decisões assistidas por IA
@@ -138,15 +118,22 @@ Treinamento do Piso Supervisionado e do Aluno da Trilha C nos orçamentos de **1
 | **20 rótulos** | 420 | `42` | `0,5984` | **`0,6399`** | **`+0,0415`** | `65,10%` | `68,56%` |
 | **Teto de Referência** | 6.505 | - | - | **`0,6860`** | - | - | - |
 
-* **Gráfico Semi-Log Oficial:** Gerado e salvo em `docs/figures/part2_curva_orcamento.png`.
+* **Gráfico Semi-Log Oficial:** Plotado dinamicamente na hora pelo notebook `main.ipynb` via `src.visualization.plot_budget_curve`.
 * **Quebra do Ganho por Classe ($B=5$ rótulos, 3 seeds):**
   - **Maiores Ganhadores:** `wild_turkey` (+0,259), `striped_skunk` (+0,224), `white_tailed_deer` (+0,215), `woodchuck` (+0,207) e `coyote` (+0,166).
   - **Classes com Baixo Ganho / Variância:** `horse` (-0,164, apenas 4 imagens no teste público), `american_crow` (-0,136, ruído de folhas), `eastern_cottontail` (-0,080) e `eastern_chipmunk` (-0,016, efeito de teto já que o piso já atingia 96,7%).
-* **Arquivo Entregável:** `curva_orcamento.csv` gerado na raiz e em `results/curva_orcamento.csv`.
+* **Arquivo Entregável:** `curva_orcamento.csv` gerado na raiz do projeto.
 
-### Parte 3 — Galeria de Falhas e Atalhos (Saliência e Grad-CAM)
-* **3 Falhas:** Imagem, rótulo real, classe predita, confiança, mapa de Grad-CAM/oclusão e diagnóstico de atalho de fundo vs. escala do espécime.
-* **5 Acertos:** Análise se a decisão correta ocorreu em virtude das feições do animal ou do contexto do cenário.
+### Parte 3 — Galeria de Falhas e Atalhos (Saliência e Grad-CAM — Concluída)
+Análise de saliência espacial via **Grad-CAM** na última camada convolucional (`layer4`) do Aluno (`ResNet-18` da Trilha C) sobre IDs fixos do `test_public` via `src.visualization.plot_gradcam_gallery`:
+* **3 Falhas Verificadas (`expected_correct=False`):**
+  - `c6660a8c2a1ace3b` (`chicken` $\rightarrow$ `eastern_gray_squirrel`, 72,5%): atalho espúrio de cenário (a galinha marrom está perfeitamente visível em primeiro plano, mas o Grad-CAM a ignora e foca na estrutura de madeira, palete e lona azul ao fundo).
+  - `52924d84cd5b18d6` (`bobcat` $\rightarrow$ `grey_fox`, 60,3%): captura noturna em infravermelho (IR) onde o modelo ignora o felino e foca no clarão difuso entre os troncos ao fundo.
+  - `58a7ef8a6f62532f` (`red_fox` $\rightarrow$ `striped_skunk`, 47,1%): animal pequeno e distante na penumbra, com o Grad-CAM atraído pelo reflexo branco do flash IR no cascalho.
+* **5 Acertos Verificados (`expected_correct=True`):**
+  - **Razão Certa (Foco no Animal):** `19751eb0a18f6065` (`white_tailed_deer`, 98,2%) e `66312a23da99f29a` (`american_black_bear`, 91,2%), com ativação centrada na anatomia do espécime.
+  - **Razão Errada / Contexto (Atalho de Fundo):** `f1ac43bb420fc5b1` (`american_crow`, 92,1%, corvo nítido à esquerda, mas com ativação principal espalhada pela clareira e linha de árvores ao fundo) e `acec876cba725d50` (`coyote`, 90,1%, foco no horizonte iluminado e arbustos fixos da câmera).
+  - **Misto (Animal + Contexto de Borda):** `4518a0185f2682c6` (`grey_fox`, 88,4%, pico no corpo da raposa com ativação secundária na folhagem superior direita).
 
 ---
 
@@ -160,8 +147,8 @@ source .venv/bin/activate
 # 2. Instalação das dependências
 pip install -r requirements.txt
 
-# 3. Comando para treinar e avaliar a Parte 0 (O Piso)
-python -m src.part0
+# 3. Execução interativa de todas as análises, tabelas e gráficos no Notebook
+jupyter notebook main.ipynb
 
 # 4. Script de Inferência Oficial em CPU (Parte final)
 python predict.py --imagens data/images/test_public --saida preds.csv

@@ -1,9 +1,0 @@
-Método / Modelo,Papel,Pseudo-Rótulos Usados,Val F1 Macro,Test Public F1 Macro,Test Public Acurácia
-Piso Supervisionado — Parte 0 (b) ResNet-18 (105 rótulos),Linha de Base Inferior (Piso),0,0.4246,0.4651,0.5068
-Professor BioCLIP Zero-Shot (Prompt Nomes Puros),Professor Zero-Shot,-,-,0.2164,0.2589
-Professor BioCLIP Zero-Shot (Prompt Camera Trap),Professor Zero-Shot (Referência),-,-,0.3017,0.3539
-Professor BioCLIP Melhorado (Adaptado com 105 rótulos),Professor Adaptado no Domínio,-,-,0.4681,0.5043
-"Aluno C1 — ResNet-18 (Zero-Shot Bruto, Sem Filtro)",Aluno (Ablação Sem Tratamento),1494,0.4297,0.4666,0.5129
-Aluno C2 — ResNet-18 (Zero-Shot Filtrado + Alinhamento + Temp T=2.0),Aluno (Melhor Val F1),547,0.4804,0.5371,0.5845
-Aluno C3 — ResNet-18 (Prof. Melhorado + Filtro Balanceado + Temp T=2.0),Aluno (Maior Acurácia),522,0.4735,0.5138,0.5734
-Teto de Referência — ResNet-18 (6.505 rótulos verdadeiros),Referência Superior,-,-,0.686,-

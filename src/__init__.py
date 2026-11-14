@@ -17,6 +17,7 @@ from src.visualization import (
     plot_student_vs_teacher_per_class,
     plot_budget_curve,
     plot_per_class_gain_budget5,
+    plot_gradcam_gallery,
 )
 from src.experiments import (
     run_floor_experiment,
@@ -47,6 +48,7 @@ __all__ = [
     "plot_student_vs_teacher_per_class",
     "plot_budget_curve",
     "plot_per_class_gain_budget5",
+    "plot_gradcam_gallery",
     "run_floor_experiment",
     "run_teacher_evaluation",
     "run_student_ablation",

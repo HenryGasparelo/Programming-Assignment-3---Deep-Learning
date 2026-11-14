@@ -152,9 +152,8 @@ def build_per_class_f1_table(
     df_test: pd.DataFrame,
     test_metrics_a: Dict,
     test_metrics_b: Dict,
-    save_path: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Constrói e opcionalmente salva a tabela de F1 por classe para comparação da Parte 0."""
+    """Constrói em memória a tabela de F1 por classe para comparação da Parte 0."""
     class_counts = df_test["label"].value_counts().to_dict()
     rows = []
     for idx, cname in enumerate(class_names):
@@ -166,11 +165,7 @@ def build_per_class_f1_table(
             "f1_part0b_resnet18": float(test_metrics_b["per_class_f1"][idx]),
             "gain_b_minus_a": float(test_metrics_b["per_class_f1"][idx] - test_metrics_a["per_class_f1"][idx]),
         })
-    df_per_class = pd.DataFrame(rows)
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        df_per_class.to_csv(save_path, index=False)
-    return df_per_class
+    return pd.DataFrame(rows)
 
 
 def build_part1_summary_table(results_list: List[Dict], ceiling_f1: float = 0.6860) -> pd.DataFrame:
