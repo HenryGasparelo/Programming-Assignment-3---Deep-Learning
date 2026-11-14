@@ -1,0 +1,37 @@
+{
+  "seed": 42,
+  "teacher_zero_shot": {
+    "f1_macro_raw_names": 0.21641368379972065,
+    "acc_raw_names": 0.2589395807644883,
+    "f1_macro_zero_shot": 0.30174245395012467,
+    "acc_zero_shot": 0.35388409371146734,
+    "night_fraction": 0.48212083847102344,
+    "acc_day": 0.27380952380952384,
+    "acc_night": 0.4398976982097187
+  },
+  "teacher_improved_105": {
+    "test_f1_macro": 0.531204876974634,
+    "test_accuracy": 0.5709001233045623
+  },
+  "student_c1_raw_zs": {
+    "best_val_epoch": 5,
+    "val_f1_macro": 0.4696868322230641,
+    "test_f1_macro": 0.4742138631263599,
+    "test_accuracy": 0.5166461159062885,
+    "pseudo_used": 1494
+  },
+  "student_c2_filtered_zs": {
+    "best_val_epoch": 14,
+    "val_f1_macro": 0.4808028691239058,
+    "test_f1_macro": 0.5153287521953135,
+    "test_accuracy": 0.5659679408138101,
+    "pseudo_used": 459
+  },
+  "student_c3_improved_teacher": {
+    "best_val_epoch": 12,
+    "val_f1_macro": 0.4411200481702825,
+    "test_f1_macro": 0.46251964781676513,
+    "test_accuracy": 0.5203452527743526,
+    "pseudo_used": 567
+  }
+}
