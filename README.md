@@ -22,7 +22,7 @@ Principais desafios do dataset **ENA24-detection** (21 classes):
 
 ## 2. Regras de Engenharia Obrigatórias
 
-* **Teto de Parâmetros:** Máximo de **12 milhões de parâmetros** (`sum(p.numel() for p in model.parameters()) <= 12_000_000`). Arquiteturas ideais: ResNet-18 (~11.7M), EfficientNet-B0 (~5.3M) ou MobileNetV3.
+* **Teto de Parâmetros:** Máximo de **12 milhões de parâmetros** (`sum(p.numel() for p in model.parameters()) <= 12_000_000`). Backbone principal adotado: **ResNet-18** (`11.187.285` parâmetros).
 * **Ambiente de Inferência:** Execução estritamente em **CPU**, sem internet, classificando o conjunto `test_private` em menos de 10 minutos.
 * **Orçamento Principal:** 5 rótulos por classe (105 imagens no total). Orçamentos de 1 e 20 rótulos são explorados na curva da Parte 2.
 * **Proibições:** 
@@ -33,39 +33,47 @@ Principais desafios do dataset **ENA24-detection** (21 classes):
 
 ---
 
-## 3. Planejamento da Estrutura de Arquivos em Árvore
-
-A estrutura do repositório foi planejada seguindo o padrão modular, reprodutível e robusto consolidado no PAA2:
+## 3. Estrutura de Arquivos em Árvore
 
 ```text
 PAA3/
 ├── checkpoints/                        # Pesos salvos dos modelos treinados
-│   ├── .gitkeep
+│   ├── part0a_small_cnn_b5_s42.pt      # Pesos da Parte 0 (a): SmallCNN treinada do zero
+│   ├── part0b_resnet18_b5_s42.pt       # Pesos da Parte 0 (b): ResNet-18 (ImageNet Fine-Tuning)
 │   └── best_model.pt                   # [Planejado] Pesos do modelo final entregue (<= 12M params)
-├── data/                               # Dados do ENA24 (descompactados do pa3_dados.zip)
-│   ├── .gitkeep
-│   ├── classes.csv                     # Mapeamento oficial de 21 classes
-│   ├── rotulos_1.csv                   # Orçamento de 1 rótulo por classe (21 imagens)
-│   ├── rotulos_5.csv                   # Orçamento padrão de 5 rótulos por classe (105 imagens)
-│   ├── rotulos_20.csv                  # Orçamento de 20 rótulos por classe (420 imagens)
-│   ├── val.csv                         # Validação (202 imagens, seleção de modelo)
-│   ├── test_public.csv                 # Teste público para reporte (811 imagens)
+├── data/                               # Dados do ENA24 (descompactados de pa3_dados.zip)
+│   ├── LEIAME.md                       # Informações oficiais do pacote de dados
+│   ├── classes.csv                     # Mapeamento oficial de 21 classes (idx, label)
+│   ├── labels/                         # Anotações em CSV (image_id, label)
+│   │   ├── rotulos_1.csv               # Orçamento de 1 rótulo por classe (21 imagens)
+│   │   ├── rotulos_5.csv               # Orçamento padrão de 5 rótulos por classe (105 imagens)
+│   │   ├── rotulos_20.csv              # Orçamento de 20 rótulos por classe (420 imagens)
+│   │   ├── val.csv                     # Validação (202 imagens, até 10 por classe)
+│   │   └── test_public.csv             # Teste público para reporte (811 imagens)
 │   └── images/                         # Imagens brutas (512px no maior lado)
+│       ├── train/                      # 6.505 imagens do pool de treino
+│       ├── val/                        # 202 imagens do conjunto de validação
+│       └── test_public/                # 811 imagens do teste público
 ├── docs/                               # Enunciado, documentação e figuras da apresentação
 │   ├── PA3.pdf                         # Enunciado oficial
-│   └── figures/                        # [Planejado] Gráficos de saliência e curvas para os slides
+│   └── figures/                        # Gráficos e figuras geradas
+│       ├── part0_curves_resnet18.png   # Curva de treino e validação da Parte 0 (b)
+│       ├── part0_comparison_a_vs_b.png # Comparativo Parte 0 (a) vs Parte 0 (b)
+│       └── part0_confusion_matrix_resnet18.png # Matriz de confusão da Parte 0 (b) no test_public
 ├── results/                            # Saídas consolidadas e artefatos de avaliação
-│   ├── .gitkeep
+│   ├── part0_summary.json              # Resumo de métricas e diagnóstico de memorização (Parte 0)
+│   ├── part0_per_class_f1.csv          # F1 por classe no test_public (Parte 0a vs 0b)
 │   └── curva_orcamento.csv             # [Planejado] Tabela oficial da Parte 2 (método, orçamento, seed, F1, acurácia)
 ├── src/                                # Código-fonte modular reutilizável
 │   ├── __init__.py
-│   ├── data.py                         # [Planejado] DataLoaders, stratificação e aumentações (Albumentations)
-│   ├── models.py                       # [Planejado] Backbones (ResNet-18, EfficientNet-B0), verificação de <=12M params
-│   ├── training.py                     # [Planejado] Loop de treino supervisionado, early stopping no val e scheduler
-│   ├── unlabeled.py                    # [Planejado] Implementação da trilha de dados não rotulados (A, B ou C)
-│   ├── metrics.py                      # [Planejado] F1 Macro, acurácia, matriz de confusão e métricas por classe
+│   ├── data.py                         # Dataset, mapeamento de classes e DataLoaders
+│   ├── models.py                       # SmallCNN e ResNet-18 com verificação estrita de <= 12M params
+│   ├── training.py                     # Loop de treino supervisionado com seleção de época pelo val F1 Macro
+│   ├── metrics.py                      # F1 Macro, acurácia, matriz de confusão e curvas de overfitting
+│   ├── part0.py                        # Pipeline completo e reprodutível da Parte 0 (O Piso)
+│   ├── unlabeled.py                    # [Planejado] Implementação da Trilha C (Professor & Aluno)
 │   ├── saliency.py                     # [Planejado] Grad-CAM / Mapas de oclusão para galeria de falhas e atalhos
-│   └── utils.py                        # [Planejado] Fixação de seeds, gerenciamento de checkpoints e logs
+│   └── utils.py                        # Fixação de seeds, gerenciamento de checkpoints e utilitários
 ├── main.ipynb                          # Notebook principal de condução e experimentação (Partes 0 a 3)
 ├── predict.py                          # [Planejado] Script de inferência em CPU exigido para avaliação no test_private
 ├── requirements.txt                    # Dependências do projeto
@@ -76,26 +84,27 @@ PAA3/
 
 ---
 
-## 4. Planejamento das Etapas e Experimentos
+## 4. Etapas, Experimentos e Resultados
 
-### Parte 0 — O Piso (Baseline Supervisionado)
-* **Objetivo:** Estabelecer a referência inferior de desempenho treinando apenas com os 105 exemplos de `rotulos_5.csv`.
-* **Versões:**
-  * *(a)* CNN pequena treinada do zero.
-  * *(b)* Backbone pré-treinado no ImageNet (ex: ResNet-18 ou EfficientNet-B0) com fine-tuning cuidadoso.
-* **Métricas:** F1 Macro e acurácia no `test_public`, matriz de confusão da versão *(b)* e curvas de treino/validação identificando o início de memorização (*overfitting* severo pelo número diminuto de amostras).
-* **Teto de Referência:** F1 Macro de **0,686** (ResNet-18 treinada com todos os 6.505 exemplos do `train`).
+### Parte 0 — O Piso (Baseline Supervisionado — Concluída)
+Treinamento supervisionado exclusivamente com os **105 exemplos** de `rotulos_5.csv` (5 rótulos por classe), selecionando a melhor época pelo **F1 Macro no `val` (202 imagens)**:
 
-### Parte 1 — Explorando os Dados Não Rotulados (6.505 imagens)
-Escolha e implementação de uma das três trilhas com o mesmo backbone:
-* **Trilha A (Auto-supervisionado):** Continuação do pré-treino no domínio com SimCLR/SwAV sobre as 6.505 imagens + avaliação linear e fine-tuning com 105 rótulos. Investigação sobre o impacto de *RandomResizedCrop* em imagens com animais pequenos (< 2% do quadro).
-* **Trilha B (Semi-supervisionado):** FixMatch utilizando os 105 rótulos e as 6.505 imagens não rotuladas, com estudo de sensibilidade do limiar $\tau$ e correção de viés para as classes raras.
-* **Trilha C (Professor & Aluno):** Destilação de conhecimento a partir de um *foundation model* aberto (ex: BioCLIP/CLIP) gerando pseudo-rótulos para treinar o aluno leve (<= 12M).
+| Modelo / Versão | Parâmetros | Melhor Época (`val`) | Val F1 Macro | Test Public F1 Macro | Test Public Acurácia |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Parte 0 (a)** — `SmallCNN` (Treinada do Zero) | `424.501` | 40 | `0,1929` | **`0,1536`** | `0,1665` (16,65%) |
+| **Parte 0 (b)** — `ResNet-18` (ImageNet Fine-Tuning) | `11.187.285` | 21 | `0,4246` | **`0,4651`** | `0,5068` (50,68%) |
+| **Teto de Referência** — `ResNet-18` (6.505 rótulos) | `11.187.285` | - | - | **`0,6860`** | - |
+
+* **Diagnóstico de Memorização (*Overfitting*) na Versão (b):** Com apenas 105 imagens, a `ResNet-18` começa a decorar o conjunto de treino já na **Época 5** (quando ultrapassa `90%` de F1 e acurácia no treino, atingindo `97%–99%` entre as épocas 7 e 10). A *Loss* de validação atinge seu mínimo na **Época 12** (`2,2021`) e o melhor F1 Macro de validação ocorre na **Época 21** (`0,4246`).
+* **Análise por Classe (Matriz de Confusão):** Espécies bem representadas na ImageNet alcançam alto F1 mesmo com 5 rótulos (`eastern_chipmunk`: `0,967`; `american_crow`: `0,796`; `virginia_opossum`: `0,796`; `dog`: `0,760`), enquanto `bird` (`0,000`, confundido com `chicken` e `eastern_gray_squirrel`) e `eastern_cottontail` (`0,000`, confundido com `coyote` em capturas noturnas) colapsam.
+
+### Parte 1 — Usando o que Não Tem Rótulo: Trilha C (Professor e Aluno)
+* **Trilha Escolhida — Trilha C (Professor & Aluno):** Utilização de um *foundation model* aberto (ex: BioCLIP / SigLIP / CLIP) como **Professor** para rotular as 6.505 imagens de `train`, avaliando seu F1 *zero-shot* no `test_public`, diagnosticando sua matriz de confusão (ruído sistemático dos pseudo-rótulos) e aplicando tratamento de ruído (filtragem por confiança / temperatura / combinação com `rotulos_5.csv`) para treinar o modelo **Aluno (`ResNet-18`, <= 12M parâmetros)**.
 
 ### Parte 2 — A Curva de Orçamento
-* Treinamento do baseline e do método escolhido nos orçamentos de **1, 5 e 20 rótulos por classe**.
+* Treinamento do piso (`0b`) e do método da Trilha C nos orçamentos de **1, 5 e 20 rótulos por classe**.
 * Execução em **3 seeds** no orçamento de 5 rótulos para reporte de média $\pm$ desvio padrão.
-* Gráfico semi-log: F1 Macro no `test_public` vs. número de rótulos com a linha do teto ($0,686$).
+* Gráfico semi-log: F1 Macro no `test_public` vs. número de rótulos com a linha do teto ($0,686$) e do Professor.
 * Geração do arquivo `results/curva_orcamento.csv` e análise de ganhos por classe.
 
 ### Parte 3 — Galeria de Falhas e Atalhos (Saliência e Grad-CAM)
@@ -104,39 +113,19 @@ Escolha e implementação de uma das três trilhas com o mesmo backbone:
 
 ---
 
-## 5. Download e Preparação dos Dados
-
-Para baixar o conjunto de dados oficial do PA3:
-
-1. Baixe o pacote compactado pelo link oficial do LILA BC / Google Drive:
-   * **Arquivo:** `pa3_dados.zip` (~415 MB)
-   * **URL:** [Google Drive - pa3_dados.zip](https://drive.google.com/file/d/1g7FGqtXOk_ziNKBwQAk8BxjPOaPCnbui/view?usp=sharing)
-2. Descompacte os arquivos na pasta `data/`:
-   ```bash
-   unzip pa3_dados.zip -d data/
-   ```
-3. A pasta `data/` deverá conter as imagens e os arquivos CSV (`rotulos_1.csv`, `rotulos_5.csv`, `rotulos_20.csv`, `val.csv`, `test_public.csv`, `classes.csv`).
-
----
-
-## 6. Configuração do Ambiente
+## 5. Configuração do Ambiente e Execução
 
 ```bash
-# Criação do ambiente virtual
+# 1. Criação e ativação do ambiente virtual
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Instalação das dependências
+# 2. Instalação das dependências
 pip install -r requirements.txt
+
+# 3. Comando para treinar e avaliar a Parte 0 (O Piso)
+python -m src.part0
+
+# 4. Script de Inferência Oficial em CPU (Parte final)
+python predict.py --imagens data/images/test_public --saida preds.csv
 ```
-
----
-
-## 7. Como Executar
-
-* **Pipeline Interativo:** Abrir e executar `main.ipynb` para inspeção visual, gráficos de saliência, treinamento e geração dos artefatos da apresentação.
-* **Script de Inferência Oficial (`predict.py`):**
-  ```bash
-  python predict.py --imagens data/images --saida preds.csv
-  ```
-  *(O script roda em CPU, sem conexão de rede, exibe a contagem de parâmetros e gera o CSV formatado com `image_id,label`)*.
