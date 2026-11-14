@@ -1,14 +1,13 @@
 import torch
 import torch.nn as nn
 from torchvision import models
-from src.utils import check_parameter_limit
+from src.utils import check_parameter_limit, count_parameters
 
 
 class SmallCNN(nn.Module):
     """
-    Parte 0 (a): CNN pequena treinada do zero para estabelecer a linha de base sem pré-treino.
-    Possui 4 blocos convolucionais com BatchNorm, ReLU, MaxPool, seguidos de AdaptiveAvgPool e classificador.
-    (~425k parâmetros, bem abaixo do limite de 12M).
+    CNN pequena de 4 blocos convolucionais treinada do zero (Parte 0a).
+    Estabelece a linha de base inferior sem nenhum pré-treino (424.501 parâmetros).
     """
 
     def __init__(self, num_classes: int = 21, dropout: float = 0.3):
@@ -34,7 +33,7 @@ class SmallCNN(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            # Pool global -> 1x1
+            # Pool adaptativo global -> 1x1
             nn.AdaptiveAvgPool2d((1, 1)),
         )
         self.classifier = nn.Sequential(
@@ -60,12 +59,11 @@ def build_model(
     verbose: bool = True,
 ) -> nn.Module:
     """
-    Constrói o modelo especificado e verifica automaticamente o limite de 12M parâmetros.
-    Opções principais:
-      - 'small_cnn': CNN pequena treinada do zero (Parte 0a)
-      - 'resnet18': ResNet-18 (Parte 0b e backbone principal do PA, ~11.19M parâmetros)
-      - 'mobilenet_v3_small': MobileNetV3-Small (~1.5M parâmetros)
-      - 'efficientnet_b0': EfficientNet-B0 (~4.0M parâmetros)
+    Constrói a arquitetura solicitada e verifica a regra estrita de teto de 12M parâmetros:
+    - 'small_cnn': 424.501 parâmetros
+    - 'resnet18': 11.187.285 parâmetros (backbone principal)
+    - 'mobilenet_v3_small': ~1.5M parâmetros
+    - 'efficientnet_b0': ~4.0M parâmetros
     """
     arch = arch.lower()
     if arch == "small_cnn":
@@ -95,6 +93,6 @@ def build_model(
         raise ValueError(f"Arquitetura não suportada: {arch}")
 
     assert check_parameter_limit(model, max_params=12_000_000, verbose=verbose), (
-        f"Modelo {arch} excedeu o limite de 12 milhões de parâmetros!"
+        f"Modelo {arch} violou a regra oficial: possui mais de 12 milhões de parâmetros!"
     )
     return model

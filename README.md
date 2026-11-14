@@ -39,7 +39,16 @@ Principais desafios do dataset **ENA24-detection** (21 classes):
 PAA3/
 ├── checkpoints/                        # Pesos salvos dos modelos treinados
 │   ├── part0a_small_cnn_b5_s42.pt      # Pesos da Parte 0 (a): SmallCNN treinada do zero
-│   ├── part0b_resnet18_b5_s42.pt       # Pesos da Parte 0 (b): ResNet-18 (ImageNet Fine-Tuning)
+│   ├── part0b_resnet18_b1_s42.pt       # Piso Supervisionado B=1 (21 rótulos)
+│   ├── part0b_resnet18_b5_s42.pt       # Piso Supervisionado B=5 (105 rótulos, seed 42)
+│   ├── part0b_resnet18_b5_s123.pt      # Piso Supervisionado B=5 (seed 123)
+│   ├── part0b_resnet18_b5_s999.pt      # Piso Supervisionado B=5 (seed 999)
+│   ├── part0b_resnet18_b20_s42.pt      # Piso Supervisionado B=20 (420 rótulos)
+│   ├── part2_student_trilha_c_b1_s42.pt   # Aluno Trilha C B=1 (21 rótulos)
+│   ├── part2_student_trilha_c_b5_s42.pt   # Aluno Trilha C B=5 (seed 42)
+│   ├── part2_student_trilha_c_b5_s123.pt  # Aluno Trilha C B=5 (seed 123)
+│   ├── part2_student_trilha_c_b5_s999.pt  # Aluno Trilha C B=5 (seed 999)
+│   ├── part2_student_trilha_c_b20_s42.pt  # Aluno Trilha C B=20 (420 rótulos)
 │   └── best_model.pt                   # [Planejado] Pesos do modelo final entregue (<= 12M params)
 ├── data/                               # Dados do ENA24 (descompactados de pa3_dados.zip)
 │   ├── LEIAME.md                       # Informações oficiais do pacote de dados
@@ -59,20 +68,32 @@ PAA3/
 │   └── figures/                        # Gráficos e figuras geradas
 │       ├── part0_curves_resnet18.png   # Curva de treino e validação da Parte 0 (b)
 │       ├── part0_comparison_a_vs_b.png # Comparativo Parte 0 (a) vs Parte 0 (b)
-│       └── part0_confusion_matrix_resnet18.png # Matriz de confusão da Parte 0 (b) no test_public
+│       ├── part0_confusion_matrix_resnet18.png # Matriz de confusão da Parte 0 (b) no test_public
+│       ├── part1_teacher_zeroshot_confusion_matrix.png # Matriz de ruído do Professor BioCLIP Zero-Shot
+│       ├── part1_teacher_noise_diagnostics.png         # Diagnóstico sistemático de ruído (dia vs. noite/IR)
+│       ├── part1_student_c3_curves.png                 # Curvas de treino/val do Aluno
+│       ├── part1_student_c3_confusion_matrix.png       # Matriz de confusão do Aluno no test_public
+│       ├── part1_student_vs_teacher_per_class.png      # Comparativo por classe: Aluno vs. Professor vs. Piso
+│       ├── part2_curva_orcamento.png                   # Curva de orçamento semi-log (Piso vs. Aluno vs. Teto)
+│       └── part2_ganho_por_classe_b5.png               # Quebra do ganho por classe no orçamento de 5 rótulos
 ├── results/                            # Saídas consolidadas e artefatos de avaliação
 │   ├── part0_summary.json              # Resumo de métricas e diagnóstico de memorização (Parte 0)
 │   ├── part0_per_class_f1.csv          # F1 por classe no test_public (Parte 0a vs 0b)
-│   └── curva_orcamento.csv             # [Planejado] Tabela oficial da Parte 2 (método, orçamento, seed, F1, acurácia)
-├── src/                                # Código-fonte modular reutilizável
-│   ├── __init__.py
-│   ├── data.py                         # Dataset, mapeamento de classes e DataLoaders
+│   ├── part1_summary.json              # Resumo das ablações da Parte 1
+│   ├── part1_summary_table.csv         # Tabela consolidada da Parte 1 (Piso vs. Professor vs. Alunos)
+│   ├── part1_per_class_comparison.csv  # F1 por classe: Piso vs. Professor vs. Aluno
+│   ├── curva_orcamento.csv             # Tabela oficial da Parte 2 (método, orçamento, seed, F1, acurácia)
+│   ├── part2_summary_table.csv         # Resumo agregado com médias e desvios padrão da Parte 2
+│   └── part2_per_class_gain_b5.csv     # Quebra detalhada de ganho por classe no orçamento 5 (3 seeds)
+├── src/                                # Código-fonte modular separado por responsabilidade
+│   ├── __init__.py                     # Interface pública consolidada do pacote
+│   ├── data.py                         # Datasets (CameraTrapDataset, TeacherStudentDataset) e DataLoaders
 │   ├── models.py                       # SmallCNN e ResNet-18 com verificação estrita de <= 12M params
-│   ├── training.py                     # Loop de treino supervisionado com seleção de época pelo val F1 Macro
-│   ├── metrics.py                      # F1 Macro, acurácia, matriz de confusão e curvas de overfitting
-│   ├── part0.py                        # Pipeline completo e reprodutível da Parte 0 (O Piso)
-│   ├── unlabeled.py                    # [Planejado] Implementação da Trilha C (Professor & Aluno)
-│   ├── saliency.py                     # [Planejado] Grad-CAM / Mapas de oclusão para galeria de falhas e atalhos
+│   ├── training.py                     # Loops de treino supervisionado e destilação de conhecimento
+│   ├── metrics.py                      # Avaliação (F1 Macro, acurácia), diagnóstico de memorização e tabelas
+│   ├── teacher.py                      # Foundation Model BioCLIP: zero-shot, pseudo-rótulos e tratamento de ruído
+│   ├── experiments.py                  # Execução modular de experimentos (Piso, Ablações e Curva de Orçamento)
+│   ├── visualization.py                # Gráficos dinâmicos (curvas, matrizes, ruído, orçamento semi-log)
 │   └── utils.py                        # Fixação de seeds, gerenciamento de checkpoints e utilitários
 ├── main.ipynb                          # Notebook principal de condução e experimentação (Partes 0 a 3)
 ├── predict.py                          # [Planejado] Script de inferência em CPU exigido para avaliação no test_private
@@ -98,14 +119,30 @@ Treinamento supervisionado exclusivamente com os **105 exemplos** de `rotulos_5.
 * **Diagnóstico de Memorização (*Overfitting*) na Versão (b):** Com apenas 105 imagens, a `ResNet-18` começa a decorar o conjunto de treino já na **Época 5** (quando ultrapassa `90%` de F1 e acurácia no treino, atingindo `97%–99%` entre as épocas 7 e 10). A *Loss* de validação atinge seu mínimo na **Época 12** (`2,2021`) e o melhor F1 Macro de validação ocorre na **Época 21** (`0,4246`).
 * **Análise por Classe (Matriz de Confusão):** Espécies bem representadas na ImageNet alcançam alto F1 mesmo com 5 rótulos (`eastern_chipmunk`: `0,967`; `american_crow`: `0,796`; `virginia_opossum`: `0,796`; `dog`: `0,760`), enquanto `bird` (`0,000`, confundido com `chicken` e `eastern_gray_squirrel`) e `eastern_cottontail` (`0,000`, confundido com `coyote` em capturas noturnas) colapsam.
 
-### Parte 1 — Usando o que Não Tem Rótulo: Trilha C (Professor e Aluno)
-* **Trilha Escolhida — Trilha C (Professor & Aluno):** Utilização de um *foundation model* aberto (ex: BioCLIP / SigLIP / CLIP) como **Professor** para rotular as 6.505 imagens de `train`, avaliando seu F1 *zero-shot* no `test_public`, diagnosticando sua matriz de confusão (ruído sistemático dos pseudo-rótulos) e aplicando tratamento de ruído (filtragem por confiança / temperatura / combinação com `rotulos_5.csv`) para treinar o modelo **Aluno (`ResNet-18`, <= 12M parâmetros)**.
+### Parte 1 — Usando o que Não Tem Rótulo: Trilha C (Professor e Aluno — Concluída)
+* **Professor BioCLIP Zero-Shot (`imageomics/bioclip` no TreeOfLife-10M):** F1 Macro = **`0,3017`** (Acurácia = `35,39%`).
+* **Diagnóstico da Matriz de Ruído:** O professor colapsa em animais pequenos (`eastern_chipmunk`: `0,050`; `bird`: `0,000`) e sofre no infravermelho noturno (48,2% do teste), gerando confusão severa entre raposa vermelha e raposa cinzenta.
+* **Ablações de Treinamento do Aluno (`ResNet-18` <= 12M params):**
+  - **Aluno C1 (Sem Filtro):** Val F1 = `0,4297` | Test F1 = `0,4666`.
+  - **Aluno C2 (Zero-Shot Filtrado $\tau=0,35$ + Alinhamento + Temp $T=2,0$):** Val F1 = **`0,4804`** | Test F1 = **`0,5371`** (Acurácia = `58,45%`).
+  - **Aluno C3 (Prof. Adaptado + Filtro Balanceado + Temp $T=2,0$):** Val F1 = `0,4735` | Test F1 = **`0,5138`** (Acurácia = `57,34%`).
+* **Aluno vs. Professor:** O Aluno supera o Professor Zero-Shot em **19 das 21 classes**, beneficiando-se da adaptação convolucional aos sensores de câmera trap e da ancoragem nos 105 rótulos limpos.
 
-### Parte 2 — A Curva de Orçamento
-* Treinamento do piso (`0b`) e do método da Trilha C nos orçamentos de **1, 5 e 20 rótulos por classe**.
-* Execução em **3 seeds** no orçamento de 5 rótulos para reporte de média $\pm$ desvio padrão.
-* Gráfico semi-log: F1 Macro no `test_public` vs. número de rótulos com a linha do teto ($0,686$) e do Professor.
-* Geração do arquivo `results/curva_orcamento.csv` e análise de ganhos por classe.
+### Parte 2 — A Curva de Orçamento (Concluída)
+Treinamento do Piso Supervisionado e do Aluno da Trilha C nos orçamentos de **1, 5 (3 seeds) e 20 rótulos por classe**, salvando a tabela entregável `curva_orcamento.csv`:
+
+| Orçamento (por classe) | Total de Rótulos | Seeds | Piso F1 Macro (`test_public`) | Aluno Trilha C F1 Macro (`test_public`) | Ganho Líquido (ΔF1 Macro) | Piso Acurácia | Aluno Trilha C Acurácia |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **1 rótulo** | 21 | `42` | `0,1687` | **`0,3797`** | **`+0,2110` (+125% relativo)** | `21,82%` | `42,05%` |
+| **5 rótulos** | 105 | `42, 123, 999` | `0,4493 ± 0,0195` | **`0,5200 ± 0,0189`** | **`+0,0707` (+8,1% acurácia)** | `48,91% ± 2,55%` | `57,01% ± 1,83%` |
+| **20 rótulos** | 420 | `42` | `0,5984` | **`0,6399`** | **`+0,0415`** | `65,10%` | `68,56%` |
+| **Teto de Referência** | 6.505 | - | - | **`0,6860`** | - | - | - |
+
+* **Gráfico Semi-Log Oficial:** Gerado e salvo em `docs/figures/part2_curva_orcamento.png`.
+* **Quebra do Ganho por Classe ($B=5$ rótulos, 3 seeds):**
+  - **Maiores Ganhadores:** `wild_turkey` (+0,259), `striped_skunk` (+0,224), `white_tailed_deer` (+0,215), `woodchuck` (+0,207) e `coyote` (+0,166).
+  - **Classes com Baixo Ganho / Variância:** `horse` (-0,164, apenas 4 imagens no teste público), `american_crow` (-0,136, ruído de folhas), `eastern_cottontail` (-0,080) e `eastern_chipmunk` (-0,016, efeito de teto já que o piso já atingia 96,7%).
+* **Arquivo Entregável:** `curva_orcamento.csv` gerado na raiz e em `results/curva_orcamento.csv`.
 
 ### Parte 3 — Galeria de Falhas e Atalhos (Saliência e Grad-CAM)
 * **3 Falhas:** Imagem, rótulo real, classe predita, confiança, mapa de Grad-CAM/oclusão e diagnóstico de atalho de fundo vs. escala do espécime.

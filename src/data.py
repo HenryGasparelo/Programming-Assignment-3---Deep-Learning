@@ -13,7 +13,7 @@ IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 def load_class_mapping(classes_csv: str = "data/classes.csv") -> Tuple[Dict[str, int], Dict[int, str], List[str]]:
-    """Carrega o mapeamento oficial de classes (label <-> idx)."""
+    """Carrega o mapeamento oficial de 21 classes do ENA24 (label <-> idx)."""
     df = pd.read_csv(classes_csv).sort_values("idx").reset_index(drop=True)
     class_to_idx = {row["label"]: int(row["idx"]) for _, row in df.iterrows()}
     idx_to_class = {int(row["idx"]): row["label"] for _, row in df.iterrows()}
@@ -23,8 +23,8 @@ def load_class_mapping(classes_csv: str = "data/classes.csv") -> Tuple[Dict[str,
 
 def get_transforms(img_size: int = 224, is_train: bool = True) -> T.Compose:
     """
-    Retorna as transformações de pré-processamento e aumentação de dados.
-    Nota: Redimensionamento direto preserva as bordas do quadro, evitando cortar animais pequenos nos cantos.
+    Retorna o pipeline de pré-processamento e data augmentation.
+    Preserva as proporções e bordas para não eliminar animais pequenos nos cantos.
     """
     if is_train:
         return T.Compose([
@@ -43,7 +43,7 @@ def get_transforms(img_size: int = 224, is_train: bool = True) -> T.Compose:
 
 
 class CameraTrapDataset(Dataset):
-    """Dataset para imagens de câmeras trap do ENA24-detection."""
+    """Dataset para imagens do ENA24-detection (rotuladas ou não rotuladas)."""
 
     def __init__(
         self,
@@ -83,6 +83,42 @@ class CameraTrapDataset(Dataset):
         return image
 
 
+class TeacherStudentDataset(Dataset):
+    """
+    Dataset híbrido para destilação de conhecimento do Aluno (Trilha C):
+    Combina amostras humanas verdadeiras com amostras pseudo-rotuladas pelo Professor
+    (incluindo soft targets temperados para destilação suave e pesos de regularização).
+    """
+
+    def __init__(
+        self,
+        records: List[Dict],
+        images_dir: str,
+        transform: Optional[T.Compose] = None,
+    ):
+        self.records = records
+        self.images_dir = images_dir
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, idx: int):
+        rec = self.records[idx]
+        img_id = str(rec["image_id"])
+        img_path = os.path.join(self.images_dir, f"{img_id}.jpg" if not img_id.endswith(".jpg") else img_id)
+
+        image = Image.open(img_path).convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+
+        target = int(rec["label"])
+        soft_probs = torch.tensor(rec["soft_probs"], dtype=torch.float32)
+        sample_weight = float(rec["weight"])
+        is_human = bool(rec["is_human"])
+        return image, target, soft_probs, sample_weight, is_human
+
+
 def get_supervised_dataloaders(
     data_dir: str = "data",
     budget: int = 5,
@@ -91,7 +127,8 @@ def get_supervised_dataloaders(
     num_workers: int = 0,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, Dict[str, int], Dict[int, str], List[str]]:
     """
-    Cria os DataLoaders supervisionados para treino (rotulos_1/5/20), validação (val) e teste público (test_public).
+    Retorna os DataLoaders para treino supervisionado (orçamentos 1, 5 ou 20),
+    validação (`val`, 202 imagens) e teste público (`test_public`, 811 imagens).
     """
     classes_csv = os.path.join(data_dir, "classes.csv")
     class_to_idx, idx_to_class, class_names = load_class_mapping(classes_csv)
