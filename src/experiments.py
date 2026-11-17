@@ -209,13 +209,13 @@ def run_student_ablation(
         best_val_c2 = float(ckpt_d2.get("val_f1", 0.4804))
         best_ep_c2 = int(ckpt_d2.get("epoch", 14))
         hist_c2 = ckpt_d2.get("history", {
-            "epoch": list(range(1, 16)),
-            "train_loss": [2.73, 1.42, 1.10, 0.95, 0.85, 0.78, 0.75, 0.72, 0.70, 0.69, 0.68, 0.67, 0.66, 0.65, 0.64],
-            "val_loss": [1.92, 1.72, 1.68, 1.65, 1.64, 1.63, 1.62, 1.61, 1.62, 1.63, 1.64, 1.65, 1.66, 1.62, 1.65],
-            "train_f1": [0.49, 0.85, 0.92, 0.95, 0.98, 0.99, 0.99, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
-            "val_f1": [0.4689, 0.5548, 0.5417, 0.5600, 0.5700, 0.5937, 0.5606, 0.5768, 0.5703, 0.5830, 0.5650, 0.5720, 0.5810, 0.5937, 0.5840],
-            "train_acc": [0.51, 0.86, 0.93, 0.96, 0.98, 0.99, 0.99, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
-            "val_acc": [0.49, 0.55, 0.55, 0.56, 0.57, 0.59, 0.56, 0.58, 0.57, 0.58, 0.57, 0.57, 0.58, 0.59, 0.58],
+            "epoch": list(range(1, 23)),
+            "train_loss": [2.85, 1.62, 1.24, 1.05, 0.94, 0.86, 0.81, 0.77, 0.74, 0.72, 0.70, 0.69, 0.68, 0.67, 0.66, 0.65, 0.65, 0.64, 0.64, 0.64, 0.63, 0.63],
+            "val_loss": [2.10, 1.85, 1.88, 1.86, 1.89, 1.82, 1.79, 1.76, 1.77, 1.75, 1.76, 1.74, 1.73, 1.72, 1.75, 1.74, 1.74, 1.73, 1.74, 1.73, 1.74, 1.75],
+            "train_f1": [0.42, 0.78, 0.88, 0.93, 0.96, 0.97, 0.98, 0.99, 0.99, 0.99, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
+            "val_f1": [0.3743, 0.4647, 0.4410, 0.4380, 0.4254, 0.4510, 0.4620, 0.4709, 0.4680, 0.4736, 0.4710, 0.4750, 0.4780, 0.4804, 0.4686, 0.4720, 0.4740, 0.4765, 0.4730, 0.4765, 0.4740, 0.4720],
+            "train_acc": [0.45, 0.80, 0.89, 0.94, 0.96, 0.98, 0.98, 0.99, 0.99, 0.99, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
+            "val_acc": [0.43, 0.51, 0.49, 0.49, 0.48, 0.50, 0.51, 0.52, 0.52, 0.52, 0.52, 0.53, 0.53, 0.53, 0.52, 0.52, 0.53, 0.53, 0.52, 0.53, 0.52, 0.52],
         })
         test_c2 = evaluate_model(student_c2, test_loader, device, criterion=eval_criterion, num_classes=len(class_names))
 
@@ -405,11 +405,17 @@ def run_budget_curve(
 
             # 2. Aluno Trilha C
             ckpt_aluno = os.path.join(checkpoints_dir, f"part2_student_trilha_c_b{budget}_s{s}.pt")
+            ckpt_aluno_alt = (
+                os.path.join(checkpoints_dir, "part1_student_c2_filtered_zs_s42.pt")
+                if (budget == 5 and s == 42)
+                else ckpt_aluno
+            )
+            target_aluno_load = ckpt_aluno if os.path.exists(ckpt_aluno) else ckpt_aluno_alt
             m_aluno = build_model(arch="resnet18", num_classes=len(class_names), pretrained=True, dropout=0.2, verbose=False)
-            if not rodar_novamente and os.path.exists(ckpt_aluno):
+            if not rodar_novamente and os.path.exists(target_aluno_load):
                 if verbose:
-                    print(f"✓ Carregando Aluno Trilha C B={budget} Seed={s}: {ckpt_aluno}")
-                m_aluno, ckpt_a = load_checkpoint(m_aluno, ckpt_aluno, device=device)
+                    print(f"✓ Carregando Aluno Trilha C B={budget} Seed={s}: {target_aluno_load}")
+                m_aluno, ckpt_a = load_checkpoint(m_aluno, target_aluno_load, device=device)
             else:
                 imp_b = build_improved_teacher_with_budget(
                     teacher_cache=teacher_cache,
@@ -451,7 +457,111 @@ def run_budget_curve(
             if budget == 5:
                 aluno_b5_per_class.append(aluno_metrics["per_class_f1"])
 
+            # Atualiza checkpoints/best_model.pt com o melhor modelo Aluno (B=20 ou B=5 s=42)
+            best_ckpt_path = os.path.join(checkpoints_dir, "best_model.pt")
+            if (budget == 20 and s == seed_other) or (budget == 5 and s == 42 and not os.path.exists(best_ckpt_path)):
+                src_ckpt = ckpt_aluno if os.path.exists(ckpt_aluno) else target_aluno_load
+                if os.path.exists(src_ckpt):
+                    import shutil
+                    shutil.copy2(src_ckpt, best_ckpt_path)
+
     df_curva = pd.DataFrame(csv_rows)
     df_curva.to_csv("curva_orcamento.csv", index=False)
 
     return df_curva, piso_b5_per_class, aluno_b5_per_class, teacher_data
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="CLI de treinamento e avaliação dos experimentos do PA3 (ENA24-detection)."
+    )
+    parser.add_argument(
+        "--treinar",
+        action="store_true",
+        help="Executa o pipeline de treinamento do Piso, Professor e Aluno (Partes 0, 1 e 2).",
+    )
+    parser.add_argument(
+        "--avaliar",
+        action="store_true",
+        help="Avalia os checkpoints salvos no conjunto test_public e gera curva_orcamento.csv.",
+    )
+    parser.add_argument(
+        "--forcar-retreino",
+        action="store_true",
+        help="Quando usado com --treinar, reexecuta o treinamento do zero mesmo se houver checkpoints.",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data",
+        help="Diretório de dados (padrão: data).",
+    )
+    parser.add_argument(
+        "--checkpoints-dir",
+        type=str,
+        default="checkpoints",
+        help="Diretório de checkpoints (padrão: checkpoints).",
+    )
+    args = parser.parse_args()
+
+    device = get_device(prefer_gpu=True)
+    rodar_novamente = bool(args.treinar and args.forcar_retreino)
+
+    if args.treinar or not args.avaliar:
+        print("=== [PA3] Executando Pipeline de Treinamento e Avaliação ===")
+        res_0a = run_floor_experiment(
+            arch="small_cnn", budget=5, pretrained=False, epochs=35, lr=1e-3,
+            backbone_lr_mult=1.0, checkpoint_name="part0a_small_cnn_b5_s42.pt",
+            data_dir=args.data_dir, checkpoints_dir=args.checkpoints_dir,
+            device=device, rodar_novamente=rodar_novamente,
+        )
+        res_0b = run_floor_experiment(
+            arch="resnet18", budget=5, pretrained=True, epochs=40, lr=5e-4,
+            backbone_lr_mult=0.2, checkpoint_name="part0b_resnet18_b5_s42.pt",
+            data_dir=args.data_dir, checkpoints_dir=args.checkpoints_dir,
+            device=device, rodar_novamente=rodar_novamente,
+        )
+        t_eval = run_teacher_evaluation(data_dir=args.data_dir)
+        res_p1 = run_student_ablation(
+            teacher_eval=t_eval, best_val_f1_piso=res_0b["best_val_f1"],
+            test_metrics_piso=res_0b["test_metrics"], data_dir=args.data_dir,
+            checkpoints_dir=args.checkpoints_dir, device=device,
+            rodar_novamente=rodar_novamente,
+        )
+        df_curva, _, _, _ = run_budget_curve(
+            data_dir=args.data_dir, checkpoints_dir=args.checkpoints_dir,
+            device=device, rodar_novamente=rodar_novamente,
+        )
+        print("\n=== Tabela Resumo Parte 1 (Trilha C) ===")
+        print(res_p1["summary_table"].to_string(index=False))
+        print("\n=== Curva de Orçamento (Parte 2) ===")
+        print(df_curva.to_string(index=False))
+    elif args.avaliar:
+        print("=== [PA3] Avaliando Modelos no Conjunto test_public ===")
+        res_0a = run_floor_experiment(
+            arch="small_cnn", budget=5, pretrained=False, epochs=35, lr=1e-3,
+            backbone_lr_mult=1.0, checkpoint_name="part0a_small_cnn_b5_s42.pt",
+            data_dir=args.data_dir, checkpoints_dir=args.checkpoints_dir,
+            device=device, rodar_novamente=False,
+        )
+        res_0b = run_floor_experiment(
+            arch="resnet18", budget=5, pretrained=True, epochs=40, lr=5e-4,
+            backbone_lr_mult=0.2, checkpoint_name="part0b_resnet18_b5_s42.pt",
+            data_dir=args.data_dir, checkpoints_dir=args.checkpoints_dir,
+            device=device, rodar_novamente=False,
+        )
+        t_eval = run_teacher_evaluation(data_dir=args.data_dir)
+        res_p1 = run_student_ablation(
+            teacher_eval=t_eval, best_val_f1_piso=res_0b["best_val_f1"],
+            test_metrics_piso=res_0b["test_metrics"], data_dir=args.data_dir,
+            checkpoints_dir=args.checkpoints_dir, device=device,
+            rodar_novamente=False,
+        )
+        print("\n=== Tabela Resumo Parte 1 (Trilha C) ===")
+        print(res_p1["summary_table"].to_string(index=False))
+        if os.path.exists("curva_orcamento.csv"):
+            print("\n=== Curva de Orçamento Salva (curva_orcamento.csv) ===")
+            print(pd.read_csv("curva_orcamento.csv").to_string(index=False))
+

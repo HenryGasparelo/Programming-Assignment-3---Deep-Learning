@@ -50,7 +50,7 @@ PAA3/
 │   ├── part2_student_trilha_c_b5_s123.pt  # Aluno Trilha C B=5 (seed 123)
 │   ├── part2_student_trilha_c_b5_s999.pt  # Aluno Trilha C B=5 (seed 999)
 │   ├── part2_student_trilha_c_b20_s42.pt  # Aluno Trilha C B=20 (420 rótulos)
-│   └── best_model.pt                   # [Planejado] Pesos do modelo final entregue (<= 12M params)
+│   └── best_model.pt                   # Pesos do modelo final entregue (<= 12M params)
 ├── data/                               # Dados do ENA24 (descompactados de pa3_dados.zip)
 │   ├── LEIAME.md                       # Informações oficiais do pacote de dados
 │   ├── classes.csv                     # Mapeamento oficial de 21 classes (idx, label)
@@ -76,7 +76,7 @@ PAA3/
 │   └── utils.py                        # Fixação de seeds, gerenciamento de checkpoints e utilitários
 ├── curva_orcamento.csv                 # Tabela oficial exigida pelo enunciado (método, orçamento, seed, F1, acurácia)
 ├── main.ipynb                          # Notebook principal autossuficiente (gera todas as tabelas e gráficos na hora)
-├── predict.py                          # [Planejado] Script de inferência em CPU exigido para avaliação no test_private
+├── predict.py                          # Script oficial de inferência em CPU (offline, <= 12M parâmetros)
 ├── requirements.txt                    # Dependências do projeto
 ├── AI_LOG.md                           # Relatório de utilização e decisões assistidas por IA
 ├── .gitignore                          # Regras de exclusão de artefatos temporários e dados brutos
@@ -131,9 +131,9 @@ Análise de saliência espacial via **Grad-CAM** na última camada convolucional
   - `52924d84cd5b18d6` (`bobcat` $\rightarrow$ `grey_fox`, 60,3%): captura noturna em infravermelho (IR) onde o modelo ignora o felino e foca no clarão difuso entre os troncos ao fundo.
   - `58a7ef8a6f62532f` (`red_fox` $\rightarrow$ `striped_skunk`, 47,1%): animal pequeno e distante na penumbra, com o Grad-CAM atraído pelo reflexo branco do flash IR no cascalho.
 * **5 Acertos Verificados (`expected_correct=True`):**
-  - **Razão Certa (Foco no Animal):** `19751eb0a18f6065` (`white_tailed_deer`, 98,2%) e `66312a23da99f29a` (`american_black_bear`, 91,2%), com ativação centrada na anatomia do espécime.
-  - **Razão Errada / Contexto (Atalho de Fundo):** `f1ac43bb420fc5b1` (`american_crow`, 92,1%, corvo nítido à esquerda, mas com ativação principal espalhada pela clareira e linha de árvores ao fundo) e `acec876cba725d50` (`coyote`, 90,1%, foco no horizonte iluminado e arbustos fixos da câmera).
-  - **Misto (Animal + Contexto de Borda):** `4518a0185f2682c6` (`grey_fox`, 88,4%, pico no corpo da raposa com ativação secundária na folhagem superior direita).
+  - **Razão Certa (Foco no Animal):** `19751eb0a18f6065` (`white_tailed_deer`, 98,2%) e `66312a23da99f29a` (`american_black_bear`, 91,0%), com ativação centrada na anatomia do espécime.
+  - **Razão Errada / Contexto (Atalho de Fundo):** `f1ac43bb420fc5b1` (`american_crow`, 92,1%, corvo nítido à esquerda, mas com ativação principal espalhada pela clareira e linha de árvores ao fundo) e `acec876cba725d50` (`coyote`, 89,7%, foco no horizonte iluminado e arbustos fixos da câmera).
+  - **Misto (Animal + Contexto de Borda):** `4518a0185f2682c6` (`grey_fox`, 87,8%, pico no corpo da raposa com ativação secundária na folhagem superior direita).
 
 ---
 
@@ -147,9 +147,15 @@ source .venv/bin/activate
 # 2. Instalação das dependências
 pip install -r requirements.txt
 
-# 3. Execução interativa de todas as análises, tabelas e gráficos no Notebook
+# 3. Comando que treina (executa pipeline de treino/destilação e salva checkpoints + curva_orcamento.csv)
+python -m src.experiments --treinar
+
+# 4. Comando que avalia (avalia os checkpoints salvos no conjunto test_public e exibe as tabelas de métricas)
+python -m src.experiments --avaliar
+
+# 5. Execução interativa de todas as análises, tabelas e gráficos no Notebook
 jupyter notebook main.ipynb
 
-# 4. Script de Inferência Oficial em CPU (Parte final)
+# 6. Script de Inferência Oficial em CPU (offline, imprime nº de parâmetros e gera preds.csv)
 python predict.py --imagens data/images/test_public --saida preds.csv
 ```

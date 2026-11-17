@@ -174,12 +174,14 @@ def build_part1_summary_table(results_list: List[Dict], ceiling_f1: float = 0.68
     incluindo Piso, Professor Zero-Shot, Alunos com ablações de ruído e Teto.
     """
     rows = list(results_list)
-    rows.append({
-        "Método / Modelo": "Teto de Referência — ResNet-18 (6.505 rótulos verdadeiros)",
-        "Papel": "Referência Superior",
-        "Pseudo-Rótulos Usados": "-",
-        "Val F1 Macro": "-",
-        "Test Public F1 Macro": ceiling_f1,
-        "Test Public Acurácia": "-",
-    })
+    has_ceiling = any("Teto de Referência" in str(r.get("Método / Modelo", "")) for r in rows)
+    if not has_ceiling:
+        rows.append({
+            "Método / Modelo": "Teto de Referência — ResNet-18 (6.505 rótulos verdadeiros)",
+            "Papel": "Referência Superior",
+            "Pseudo-Rótulos Usados": "-",
+            "Val F1 Macro": "-",
+            "Test Public F1 Macro": ceiling_f1,
+            "Test Public Acurácia": "-",
+        })
     return pd.DataFrame(rows)

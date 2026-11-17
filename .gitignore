@@ -19,8 +19,7 @@ data/*
 # Checkpoints intermediários e pesados
 checkpoints/*
 !checkpoints/.gitkeep
-# Se for versionar apenas o modelo final entregue, descomentar:
-# !checkpoints/best_model.pt
+!checkpoints/best_model.pt
 
 # Resultados e predições temporárias
 results/temp/
