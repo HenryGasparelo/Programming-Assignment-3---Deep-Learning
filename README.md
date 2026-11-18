@@ -149,9 +149,11 @@ pip install -r requirements.txt
 
 # 3. Comando que treina (executa pipeline de treino/destilação e salva checkpoints + curva_orcamento.csv)
 python -m src.experiments --treinar
+# (ou: python -m src.experiments --train)
 
 # 4. Comando que avalia (avalia os checkpoints salvos no conjunto test_public e exibe as tabelas de métricas)
 python -m src.experiments --avaliar
+# (ou: python -m src.experiments --evaluate)
 
 # 5. Execução interativa de todas as análises, tabelas e gráficos no Notebook
 jupyter notebook main.ipynb
